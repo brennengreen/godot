@@ -185,6 +185,9 @@ void GodotBody2D::set_param(PhysicsServer2D::BodyParameter p_param, const Varian
 			_update_transform_dependent();
 		} break;
 		case PhysicsServer2D::BODY_PARAM_GRAVITY_SCALE: {
+			if (gravity_scale == 0.0) {
+				wakeup();
+			}
 			gravity_scale = p_value;
 		} break;
 		case PhysicsServer2D::BODY_PARAM_LINEAR_DAMP_MODE: {
