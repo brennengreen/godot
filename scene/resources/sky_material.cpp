@@ -308,12 +308,22 @@ Ref<Texture2D> PanoramaSkyMaterial::get_panorama() const {
 	return panorama;
 }
 
+void PanoramaSkyMaterial::set_filtering_enabled(bool p_enabled) {
+	filtering_enabled = p_enabled;
+	this->_update_shader();
+	// update shader
+}
+
+bool PanoramaSkyMaterial::is_filtering_enabled() const {
+	return filtering_enabled;
+}
+
 Shader::Mode PanoramaSkyMaterial::get_shader_mode() const {
 	return Shader::MODE_SKY;
 }
 
 RID PanoramaSkyMaterial::get_rid() const {
-	_update_shader();
+	((PanoramaSkyMaterial *)this)->_update_shader();
 	if (!shader_set) {
 		RS::get_singleton()->material_set_shader(_get_material(), shader);
 		shader_set = true;
@@ -322,7 +332,8 @@ RID PanoramaSkyMaterial::get_rid() const {
 }
 
 RID PanoramaSkyMaterial::get_shader_rid() const {
-	_update_shader();
+	MutexLock lock(shader_mutex);
+	((PanoramaSkyMaterial *)this)->_update_shader();
 	return shader;
 }
 
@@ -330,7 +341,12 @@ void PanoramaSkyMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_panorama", "texture"), &PanoramaSkyMaterial::set_panorama);
 	ClassDB::bind_method(D_METHOD("get_panorama"), &PanoramaSkyMaterial::get_panorama);
 
+	ClassDB::bind_method(D_METHOD("set_filtering_enabled", "enabled"), &PanoramaSkyMaterial::set_filtering_enabled);
+	ClassDB::bind_method(D_METHOD("is_filtering_enabled"), &PanoramaSkyMaterial::is_filtering_enabled);
+
+
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "panorama", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_panorama", "get_panorama");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "filtering_enabled"), "set_filtering_enabled", "is_filtering_enabled");
 }
 
 Mutex PanoramaSkyMaterial::shader_mutex;
@@ -343,22 +359,24 @@ void PanoramaSkyMaterial::cleanup_shader() {
 }
 
 void PanoramaSkyMaterial::_update_shader() {
+
+	String filter_str;
+	if (filtering_enabled) {
+		filter_str = "filter_linear";
+	} else {
+		filter_str = "filter_nearest";
+	}
 	shader_mutex.lock();
 	if (shader.is_null()) {
 		shader = RS::get_singleton()->shader_create();
-
+		String code = "// NOTE: Shader automatically converted from " VERSION_NAME " " VERSION_FULL_CONFIG "'s PanoramaSkyMaterial.\n\n";
+		code += "shader_type sky;\n\n";
+		code += vformat("uniform sampler2D source_panorama : %s, hint_albedo;\n\n", filter_str);
+		code += "void sky() {\n";
+		code += "	COLOR = texture(source_panorama, SKY_COORDS).rgb;\n\n";
+		code += "}\n";
 		// Add a comment to describe the shader origin (useful when converting to ShaderMaterial).
-		RS::get_singleton()->shader_set_code(shader, R"(
-// NOTE: Shader automatically converted from )" VERSION_NAME " " VERSION_FULL_CONFIG R"('s PanoramaSkyMaterial.
-
-shader_type sky;
-
-uniform sampler2D source_panorama : filter_linear, hint_albedo;
-
-void sky() {
-	COLOR = texture(source_panorama, SKY_COORDS).rgb;
-}
-)");
+		RS::get_singleton()->shader_set_code(shader,code);
 	}
 
 	shader_mutex.unlock();
