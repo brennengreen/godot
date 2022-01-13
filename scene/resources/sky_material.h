@@ -110,8 +110,8 @@ private:
 	Ref<Texture2D> panorama;
 
 	static Mutex shader_mutex;
-	static RID shader;
-	void _update_shader();
+	static RID shader_cache[2];
+	static void _update_shader();
 	mutable bool shader_set = false;
 
 	bool filter = true;
